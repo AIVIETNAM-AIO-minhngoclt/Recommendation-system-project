@@ -22,19 +22,39 @@ sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))
 
 import streamlit as st
 
-# ── One-time covers extraction ─────────────────────────────────────────────────
-@st.cache_resource
-def _extract_covers():
+# ── One-time data bootstrap (download + extract covers) ───────────────────────
+@st.cache_resource(show_spinner="Preparing dataset…")
+def _bootstrap_data():
     import zipfile
     from pathlib import Path
+
     root = Path(__file__).parent.parent
-    covers_dir = root / "microlens-5k" / "covers"
-    zip_path = root / "microlens-5k" / "covers.zip"
+    data_dir = root / "microlens-5k"
+    data_dir.mkdir(exist_ok=True)
+
+    covers_dir = data_dir / "covers"
+    zip_path   = data_dir / "covers.zip"
+
+    # ── 1. Download covers.zip from Google Drive if not present ───────────
+    if not covers_dir.exists() and not zip_path.exists():
+        try:
+            import gdown
+            # Public Google Drive folder – downloads its contents into data_dir
+            gdown.download_folder(
+                "https://drive.google.com/drive/folders/1DXLfYCKWzbkE0mq7TMurNjhFa_ICRSrz",
+                output=str(data_dir),
+                quiet=True,
+                use_cookies=False,
+            )
+        except Exception:
+            pass  # graceful degradation: covers will show as placeholder
+
+    # ── 2. Extract covers.zip if it was just downloaded (or already existed) ─
     if not covers_dir.exists() and zip_path.exists():
         with zipfile.ZipFile(zip_path, "r") as zf:
-            zf.extractall(root / "microlens-5k")
+            zf.extractall(data_dir)
 
-_extract_covers()
+_bootstrap_data()
 
 from src.state.session import init_session
 
