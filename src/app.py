@@ -22,6 +22,20 @@ sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))
 
 import streamlit as st
 
+# ── One-time covers extraction ─────────────────────────────────────────────────
+@st.cache_resource
+def _extract_covers():
+    import zipfile
+    from pathlib import Path
+    root = Path(__file__).parent.parent
+    covers_dir = root / "microlens-5k" / "covers"
+    zip_path = root / "microlens-5k" / "covers.zip"
+    if not covers_dir.exists() and zip_path.exists():
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            zf.extractall(root / "microlens-5k")
+
+_extract_covers()
+
 from src.state.session import init_session
 
 # ── Page config ───────────────────────────────────────────────────────────────

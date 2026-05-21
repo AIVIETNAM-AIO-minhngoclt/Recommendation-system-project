@@ -17,8 +17,8 @@ from src.neumf import NeuMF
 from src.seqneumf import SeqNeuMF
 
 _ROOT = Path(__file__).parent.parent.parent
-_CHECKPOINTS_DIR = _ROOT / "checkpoints"
-_DATA_DIR = _ROOT / "data" / "microlens-5k"
+_CHECKPOINTS_DIR = _ROOT / "microlens-5k"
+_DATA_DIR = _ROOT / "microlens-5k"
 
 
 # ── Finding Checkpoints ───────────────────────────────────────────────────────

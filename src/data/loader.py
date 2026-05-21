@@ -15,7 +15,7 @@ import pandas as pd
 import streamlit as st
 
 _ROOT = Path(__file__).parent.parent.parent
-_DEFAULT_DIR = str(_ROOT / "data" / "microlens-5k")
+_DEFAULT_DIR = str(_ROOT / "microlens-5k")
 
 
 # ── Raw CSV loaders (cached) ──────────────────────────────────────────────────
