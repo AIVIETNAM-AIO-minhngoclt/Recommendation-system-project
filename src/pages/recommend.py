@@ -31,8 +31,13 @@ _RUN_KEY = "rec_results"
 def render() -> None:
     init_session()
 
-    st.title("⭐ Recommend")
-    st.caption("Generate AI recommendations based on user history.")
+    st.markdown(
+        '<div class="page-hero">'
+        '<h1>⭐ Recommend</h1>'
+        '<p>AI-powered personalized recommendations using PyTorch NeuMF &amp; SeqNeuMF models</p>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 
     user_id = get_selected_user()
 
@@ -150,7 +155,14 @@ def render() -> None:
             st.info("All results hidden. Clear results to reset.")
             return
 
-        st.caption(f"Showing **{len(visible)}** predictions via **{model_type}**")
+        st.markdown(
+            f'<div class="stats-banner" style="margin-bottom:12px;">'
+            f'<span class="stats-banner-item">🧠 <b>{model_type}</b></span>'
+            f'<span class="stats-banner-item">🎯 Top-<b>{top_k}</b> results</span>'
+            f'<span class="stats-banner-item">✅ <b>{len(visible)}</b> visible</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
         rows = [visible[i : i + _GRID_COLS] for i in range(0, len(visible), _GRID_COLS)]
         for row in rows:

@@ -71,10 +71,14 @@ def render() -> None:
     user_options = ["— None —"] + all_users
     current_idx = user_options.index(current_user) if current_user in user_options else 0
 
-    # ── Top control bar (title row + controls row) ────────────────────────
-    title_col, spacer = st.columns([2, 3])
-    with title_col:
-        st.title("🔍 Explore")
+    # ── Page hero ─────────────────────────────────────────────────────────
+    st.markdown(
+        '<div class="page-hero">'
+        '<h1>🔍 Explore</h1>'
+        '<p>Browse and discover content from the MicroLens-5k dataset</p>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 
     # Control row: User | Search | Sort | Video-only toggle
     u_col, s_col, sort_col, tog_col = st.columns([1.6, 2, 1.6, 1], gap="small")
@@ -133,6 +137,17 @@ def render() -> None:
         total = len(sorted_items)
         total_pages = max(1, (total + _PAGE_SIZE - 1) // _PAGE_SIZE)
 
+        # Stats banner
+        video_count = sum(1 for i in sorted_items if i.get("video"))
+        st.markdown(
+            f'<div class="stats-banner">'
+            f'<span class="stats-banner-item">📦 <b>{total}</b> items</span>'
+            f'<span class="stats-banner-item">🎬 <b>{video_count}</b> with video</span>'
+            f'<span class="stats-banner-item">📄 <b>{total_pages}</b> pages</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
         page_col, info_col = st.columns([2, 3])
         with page_col:
             page = st.number_input(
@@ -143,11 +158,7 @@ def render() -> None:
         with info_col:
             start = (page - 1) * _PAGE_SIZE + 1
             end = min(page * _PAGE_SIZE, total)
-            video_count = sum(1 for i in sorted_items if i.get("video"))
-            st.caption(
-                f"Showing **{start}–{end}** of **{total}** items"
-                f" · 🎬 **{video_count}** total videos"
-            )
+            st.caption(f"Showing **{start}–{end}** of **{total}**")
 
         page_items = sorted_items[(page - 1) * _PAGE_SIZE: page * _PAGE_SIZE]
         rows = [page_items[i: i + _GRID_COLS] for i in range(0, len(page_items), _GRID_COLS)]

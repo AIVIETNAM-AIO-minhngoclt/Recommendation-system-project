@@ -1,16 +1,7 @@
-"""Reusable MicroLens media card component.
-
-Card layout (top → bottom):
-  1. Cover image  (st.image — works for local paths & URLs; placeholder if None)
-  2. Video player (▶ Play button toggles st.video inline; hidden if no video)
-  3. Title        (bold, clamped to ~2 lines)
-  4. Stats        (❤ likes  👁 views  — N/A when None)
-  5. Actions      ("Use as seed" / "Remove seed" for explore cards)
-
-No preview_frames strip — this dataset has no frame sequences.
-Recommendation logic MUST NOT be placed here.
-"""
+"""Reusable MicroLens media card component."""
 from __future__ import annotations
+
+import base64
 
 import streamlit as st
 
@@ -22,7 +13,7 @@ except ImportError:
 
 from src.state.session import add_seed, remove_seed, is_seed
 
-_PLACEHOLDER_H = 140   # px for no-cover placeholder
+_PLACEHOLDER_H = 150
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -41,31 +32,63 @@ def _fmt(v: int | float | None) -> str:
 def _safe_id(item_id: object) -> str:
     return str(item_id)
 
-import base64
-def _render_cover(cover: str | None) -> None:
+
+def _render_cover(cover: str | None, height: int = 160) -> None:
     if cover:
         try:
             with open(cover, "rb") as f:
                 b64 = base64.b64encode(f.read()).decode("utf-8")
             ext = "png" if str(cover).endswith(".png") else "jpeg"
             st.markdown(
+                f'<div style="position:relative;margin-bottom:8px;border-radius:8px;overflow:hidden;">'
                 f'<img src="data:image/{ext};base64,{b64}" '
-                f'style="width:100%;height:160px;object-fit:cover;border-radius:4px;display:block;margin-bottom:8px;" />',
+                f'style="width:100%;height:{height}px;object-fit:cover;display:block;" />'
+                f'<div style="position:absolute;bottom:0;left:0;right:0;height:55px;'
+                f'background:linear-gradient(transparent,rgba(0,0,0,0.72));"></div>'
+                f'</div>',
                 unsafe_allow_html=True,
             )
         except Exception:
             st.image(cover, use_container_width=True)
     else:
         st.markdown(
-            f'<div style="height:{_PLACEHOLDER_H}px;background:#1e293b;'
-            f'border-radius:4px;display:flex;align-items:center;'
-            f'justify-content:center;margin-bottom:8px;"><span style="color:#64748b;'
-            f'font-size:13px;">No cover</span></div>',
+            f'<div style="height:{_PLACEHOLDER_H}px;'
+            f'background:linear-gradient(135deg,#0f172a,#1e293b);'
+            f'border-radius:8px;display:flex;align-items:center;'
+            f'justify-content:center;margin-bottom:8px;">'
+            f'<span style="color:#334155;font-size:28px;">🎬</span>'
+            f'</div>',
             unsafe_allow_html=True,
         )
 
 
-# ── Shared: Watch History sidebar ─────────────────────────────────────────────
+def _render_stats(likes, views) -> None:
+    parts = []
+    if likes is not None:
+        parts.append(f'<span class="chip chip-likes">❤ {_fmt(likes)}</span>')
+    if views is not None:
+        parts.append(f'<span class="chip chip-views">👁 {_fmt(views)}</span>')
+    if parts:
+        st.markdown(
+            f'<div style="display:flex;gap:5px;flex-wrap:wrap;margin:4px 0 5px;">'
+            + "".join(parts)
+            + '</div>',
+            unsafe_allow_html=True,
+        )
+
+
+def _render_score_bar(score: float) -> None:
+    pct = min(100, int(score * 100))
+    st.markdown(
+        f'<div class="score-bar">'
+        f'<div class="score-bar-header"><span>Match score</span><span>{score:.4f}</span></div>'
+        f'<div class="score-bar-bg"><div class="score-bar-fill" style="width:{pct}%;"></div></div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+
+# ── Watch History panel ───────────────────────────────────────────────────────
 
 def render_watch_history(
     history: list[dict],
@@ -73,11 +96,6 @@ def render_watch_history(
     max_items: int = 20,
     height: int = 600,
 ) -> None:
-    """Reusable watch-history panel (right column on Explore & Recommend pages).
-
-    Items that are active seeds are shown with a 🌱 badge at the top.
-    """
-    from src.state.session import is_seed  # local import to avoid circular
     seed_count_in_hist = sum(1 for h in history if is_seed(str(h.get("id"))))
     caption = f"User `{user_id}` · **{len(history)}** interactions"
     if seed_count_in_hist:
@@ -92,53 +110,60 @@ def render_watch_history(
         for h in history[:max_items]:
             item_id = str(h.get("id", ""))
             seeded = is_seed(item_id)
+            ring = "2px solid #6366f1" if seeded else "1px solid rgba(99,102,241,0.15)"
+            bg   = "rgba(99,102,241,0.06)" if seeded else "rgba(15,23,42,0.5)"
 
-            hc, hi = st.columns([1.2, 2])
-            with hc:
-                cover = h.get("cover")
-                if cover:
-                    try:
-                        with open(cover, "rb") as f:
-                            b64 = base64.b64encode(f.read()).decode("utf-8")
-                        ext = "png" if str(cover).endswith(".png") else "jpeg"
-                        border = "2px solid #6366f1" if seeded else "none"
-                        st.markdown(
-                            f'<img src="data:image/{ext};base64,{b64}" '
-                            f'style="width:100%;height:52px;object-fit:cover;'
-                            f'border-radius:4px;display:block;border:{border};" />',
-                            unsafe_allow_html=True,
-                        )
-                    except Exception:
-                        st.image(cover, use_container_width=True)
-                else:
-                    st.markdown(
-                        '<div style="width:100%;height:52px;'
-                        'background:#1e293b;border-radius:4px;"></div>',
-                        unsafe_allow_html=True,
+            cover = h.get("cover")
+            t = str(h.get("title", ""))[:52]
+            video_icon = "🎥 " if h.get("video") else ""
+            seed_badge = (
+                '<span style="font-size:9px;background:#6366f1;color:#fff;'
+                'border-radius:3px;padding:1px 5px;margin-right:4px;font-weight:700;">SEED</span>'
+                if seeded else ""
+            )
+
+            # Thumbnail
+            thumb_html = ""
+            if cover:
+                try:
+                    with open(cover, "rb") as f:
+                        b64 = base64.b64encode(f.read()).decode("utf-8")
+                    ext = "png" if str(cover).endswith(".png") else "jpeg"
+                    thumb_html = (
+                        f'<img src="data:image/{ext};base64,{b64}" '
+                        f'style="width:52px;height:42px;object-fit:cover;border-radius:6px;'
+                        f'flex-shrink:0;border:{ring};" />'
                     )
-            with hi:
-                t = str(h.get("title", ""))[:48]
-                seed_badge = '<span style="font-size:10px;background:#6366f1;color:#fff;border-radius:3px;padding:1px 5px;margin-right:4px;">SEED</span>' if seeded else ""
-                video_icon = "🎥 " if h.get("video") else ""
-                st.markdown(
-                    f'<p style="font-size:12px;margin:0;line-height:1.35;'
-                    f'padding-top:4px;">{seed_badge}{video_icon}{t}</p>',
-                    unsafe_allow_html=True,
+                except Exception:
+                    pass
+            if not thumb_html:
+                thumb_html = (
+                    f'<div style="width:52px;height:42px;background:#1e293b;'
+                    f'border-radius:6px;flex-shrink:0;display:flex;align-items:center;'
+                    f'justify-content:center;border:{ring};">'
+                    f'<span style="font-size:16px;">🎬</span></div>'
                 )
-            st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
+
+            st.markdown(
+                f'<div style="display:flex;gap:9px;align-items:center;'
+                f'padding:6px 8px;border-radius:8px;background:{bg};margin-bottom:5px;">'
+                + thumb_html
+                + f'<p style="font-size:11px;margin:0;line-height:1.4;color:#cbd5e1;">'
+                f'{seed_badge}{video_icon}{t}</p>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
 
         if len(history) > max_items:
             st.caption(f"…and {len(history) - max_items} more")
 
 
-
 # ── Explore card ──────────────────────────────────────────────────────────────
 
 def render_media_card(item: dict, key_prefix: str = "") -> None:
-    """Render an explore-mode media card. Never crashes on missing fields."""
     try:
         _card_inner(item, key_prefix)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         st.warning(f"⚠️ Card error (id={item.get('id','?')}): {exc}")
 
 
@@ -150,50 +175,45 @@ def _card_inner(item: dict, key_prefix: str) -> None:
     likes   = item.get("likes")
     views   = item.get("views")
 
-    play_key = f"{key_prefix}_play_{item_id}"
-    seed_key = f"{key_prefix}_seed_{item_id}"
-    already_seed = is_seed(item_id)
+    play_key      = f"{key_prefix}_play_{item_id}"
+    seed_key      = f"{key_prefix}_seed_{item_id}"
+    already_seed  = is_seed(item_id)
 
     with st.container(border=True):
-        # ── Cover ─────────────────────────────────────────────────────────
         _render_cover(cover)
 
-        # ── Video player ───────────────────────────────────────────────────
+        # Video player
         if video:
             if st.session_state.get(play_key):
                 st.video(video)
-                if st.button("✕ Close", key=f"{play_key}_close",
-                             use_container_width=True):
+                if st.button("✕ Close", key=f"{play_key}_close", use_container_width=True):
                     st.session_state[play_key] = False
                     st.rerun()
             else:
-                if st.button("▶ Play", key=f"{play_key}_open",
-                             use_container_width=True):
+                if st.button("▶ Play", key=f"{play_key}_open", use_container_width=True):
                     st.session_state[play_key] = True
                     st.rerun()
 
-        # ── Title ──────────────────────────────────────────────────────────
+        # Title
+        video_dot = '<span class="chip chip-video" style="font-size:9px;padding:1px 6px;margin-bottom:3px;display:inline-block;">VIDEO</span><br>' if video else ""
         st.markdown(
-            f'<p style="font-weight:600;font-size:13px;line-height:1.35;'
+            f'{video_dot}'
+            f'<p style="font-weight:600;font-size:13px;line-height:1.4;'
             f'display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;'
-            f'overflow:hidden;margin:4px 0 2px;">{title}</p>',
+            f'overflow:hidden;margin:2px 0 4px;color:#e2e8f0;">{title}</p>',
             unsafe_allow_html=True,
         )
 
-        # ── Stats ──────────────────────────────────────────────────────────
-        c1, c2 = st.columns(2)
-        c1.caption(f"❤️ {_fmt(likes)}")
-        c2.caption(f"👁 {_fmt(views)}")
+        _render_stats(likes, views)
 
-        # ── Seed action ────────────────────────────────────────────────────
+        # Seed action
         if already_seed:
-            btn_label, btn_variant = "✕ Remove seed", "destructive"
+            btn_label, btn_type = "✕ Remove seed", "destructive"
         else:
-            btn_label, btn_variant = "＋ Use as seed", "default"
+            btn_label, btn_type = "＋ Use as seed", "default"
 
         if _HAS_SCU:
-            if ui.button(btn_label, key=seed_key, variant=btn_variant,
-                         class_name="w-full mt-1"):
+            if ui.button(btn_label, key=seed_key, variant=btn_type, class_name="w-full mt-1"):
                 if already_seed:
                     remove_seed(item_id)
                 else:
@@ -211,10 +231,9 @@ def _card_inner(item: dict, key_prefix: str) -> None:
 # ── Result card (Recommend page) ──────────────────────────────────────────────
 
 def render_result_card(item: dict, result: dict, key_prefix: str = "rec") -> None:
-    """Render a recommendation result card with rank, score, reason tags."""
     try:
         _result_inner(item, result, key_prefix)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         st.warning(f"⚠️ Result card error (id={item.get('id','?')}): {exc}")
 
 
@@ -237,58 +256,56 @@ def _result_inner(item: dict, result: dict, key_prefix: str) -> None:
         return
 
     with st.container(border=True):
-        # Rank + score row
+        # Rank + score header row
         r1, r2 = st.columns([1, 1])
         r1.markdown(
-            f'<span style="background:#7c3aed;color:#fff;border-radius:4px;'
-            f'padding:1px 7px;font-size:11px;font-weight:700;">#{rank}</span>',
+            f'<span style="background:linear-gradient(135deg,#7c3aed,#6366f1);'
+            f'color:#fff;border-radius:6px;padding:2px 9px;font-size:11px;font-weight:800;">'
+            f'#{rank}</span>',
             unsafe_allow_html=True,
         )
         r2.markdown(
-            f'<span style="background:#0f172a;border:1px solid #334155;'
-            f'border-radius:4px;padding:1px 6px;font-size:11px;color:#e2e8f0;">'
-            f'{score:.2f}</span>',
+            f'<span style="background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.25);'
+            f'border-radius:6px;padding:2px 7px;font-size:11px;color:#a5b4fc;font-weight:600;">'
+            f'{score:.4f}</span>',
             unsafe_allow_html=True,
         )
 
-        # Cover
-        _render_cover(cover)
+        _render_cover(cover, height=150)
 
         # Video player
         if video:
             if st.session_state.get(play_key):
                 st.video(video)
-                if st.button("✕ Close", key=f"{play_key}_close",
-                             use_container_width=True):
+                if st.button("✕ Close", key=f"{play_key}_close", use_container_width=True):
                     st.session_state[play_key] = False
                     st.rerun()
             else:
-                if st.button("▶ Play", key=f"{play_key}_open",
-                             use_container_width=True):
+                if st.button("▶ Play", key=f"{play_key}_open", use_container_width=True):
                     st.session_state[play_key] = True
                     st.rerun()
 
         # Title
         st.markdown(
-            f'<p style="font-weight:600;font-size:13px;line-height:1.35;'
+            f'<p style="font-weight:600;font-size:13px;line-height:1.4;'
             f'display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;'
-            f'overflow:hidden;margin:4px 0 2px;">{title}</p>',
+            f'overflow:hidden;margin:4px 0 2px;color:#e2e8f0;">{title}</p>',
             unsafe_allow_html=True,
         )
 
-        # Stats
-        c1, c2 = st.columns(2)
-        c1.caption(f"❤️ {_fmt(likes)}")
-        c2.caption(f"👁 {_fmt(views)}")
+        _render_stats(likes, views)
+        _render_score_bar(score)
 
-        # Reason
+        # Reason tags
+        tags_html = " · ".join(
+            f'<span style="color:#a78bfa;">{tag}</span>' for tag in reason_tags
+        )
         st.markdown(
-            f'<div style="font-size:11px;color:#a78bfa;margin:2px 0 4px;">'
-            f'✦ {" · ".join(reason_tags)}</div>',
+            f'<div style="font-size:11px;margin:2px 0 6px;line-height:1.4;">✦ {tags_html}</div>',
             unsafe_allow_html=True,
         )
 
-        # Actions: More / Less / Hide
+        # Actions
         a1, a2, a3 = st.columns(3)
         with a1:
             if st.button("👍", key=f"{key_prefix}_more_{item_id}",
@@ -300,6 +317,6 @@ def _result_inner(item: dict, result: dict, key_prefix: str) -> None:
                 st.toast("Noted: less like this!", icon="👎")
         with a3:
             if st.button("✕", key=hide_key,
-                         use_container_width=True, help="Hide"):
+                         use_container_width=True, help="Hide this result"):
                 st.session_state[hide_key] = True
                 st.rerun()
